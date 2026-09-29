@@ -1,0 +1,33 @@
+File: node
+Type: cpu
+Time: 2026-09-29 11:25:41 PDT
+Duration: 10.11s, Total samples = 5.02s (49.67%)
+Showing nodes accounting for 4.91s, 97.81% of 5.02s total
+Dropped 42 nodes (cum <= 0.03s)
+Showing top 25 nodes out of 54
+      flat  flat%   sum%        cum   cum%
+     2.20s 43.82% 43.82%      2.20s 43.82%  syscall.rawsyscalln
+     1.27s 25.30% 69.12%      1.27s 25.30%  runtime.kevent
+     0.62s 12.35% 81.47%      0.62s 12.35%  runtime.pthread_cond_wait
+     0.54s 10.76% 92.23%      0.54s 10.76%  runtime.pthread_cond_signal
+     0.27s  5.38% 97.61%      0.27s  5.38%  runtime.usleep
+     0.01s   0.2% 97.81%      0.03s   0.6%  runtime.mapaccess2_faststr
+         0     0% 97.81%      0.74s 14.74%  bufio.(*Reader).Read
+         0     0% 97.81%      0.04s   0.8%  distkv/internal/node.(*Node).Handle
+         0     0% 97.81%      0.74s 14.74%  distkv/internal/protocol.ReadFrame
+         0     0% 97.81%      1.53s 30.48%  distkv/internal/transport.(*Server).handle
+         0     0% 97.81%      1.49s 29.68%  distkv/internal/transport.(*Server).respond
+         0     0% 97.81%      0.86s 17.13%  distkv/internal/transport.(*Server).serveConn
+         0     0% 97.81%      1.42s 28.29%  distkv/internal/transport.(*Server).serveConn.func2
+         0     0% 97.81%      1.49s 29.68%  distkv/internal/transport.(*frameWriter).flush
+         0     0% 97.81%      1.49s 29.68%  distkv/internal/transport.(*frameWriter).write
+         0     0% 97.81%      0.74s 14.74%  internal/poll.(*FD).Read
+         0     0% 97.81%      1.47s 29.28%  internal/poll.(*FD).Write
+         0     0% 97.81%      2.21s 44.02%  internal/poll.ignoringEINTRIO (inline)
+         0     0% 97.81%      0.74s 14.74%  io.ReadAtLeast
+         0     0% 97.81%      0.74s 14.74%  io.ReadFull (inline)
+         0     0% 97.81%      0.74s 14.74%  net.(*conn).Read
+         0     0% 97.81%      1.47s 29.28%  net.(*conn).Write
+         0     0% 97.81%      0.74s 14.74%  net.(*netFD).Read
+         0     0% 97.81%      1.47s 29.28%  net.(*netFD).Write
+         0     0% 97.81%      0.12s  2.39%  runtime.entersyscallWakeSysmon

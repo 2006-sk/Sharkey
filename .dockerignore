@@ -1,0 +1,4 @@
+bin/
+.run/
+benchmarks/
+*.md

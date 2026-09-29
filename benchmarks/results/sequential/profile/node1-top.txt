@@ -1,0 +1,33 @@
+File: node
+Type: cpu
+Time: 2026-09-29 11:26:03 PDT
+Duration: 10.11s, Total samples = 5.43s (53.72%)
+Showing nodes accounting for 5.35s, 98.53% of 5.43s total
+Dropped 22 nodes (cum <= 0.03s)
+Showing top 25 nodes out of 46
+      flat  flat%   sum%        cum   cum%
+     3.45s 63.54% 63.54%      3.45s 63.54%  syscall.rawsyscalln
+     1.09s 20.07% 83.61%      1.09s 20.07%  runtime.kevent
+     0.39s  7.18% 90.79%      0.39s  7.18%  runtime.pthread_cond_wait
+     0.38s  7.00% 97.79%      0.38s  7.00%  runtime.pthread_cond_signal
+     0.03s  0.55% 98.34%      0.03s  0.55%  runtime.usleep
+     0.01s  0.18% 98.53%      1.83s 33.70%  net.(*netFD).Write
+         0     0% 98.53%      1.64s 30.20%  bufio.(*Reader).Read
+         0     0% 98.53%      1.64s 30.20%  distkv/internal/protocol.ReadFrame
+         0     0% 98.53%      3.49s 64.27%  distkv/internal/transport.(*Server).serveConn
+         0     0% 98.53%      1.84s 33.89%  distkv/internal/transport.(*Server).writeResponse
+         0     0% 98.53%      1.64s 30.20%  internal/poll.(*FD).Read
+         0     0% 98.53%      1.82s 33.52%  internal/poll.(*FD).Write
+         0     0% 98.53%      3.46s 63.72%  internal/poll.ignoringEINTRIO (inline)
+         0     0% 98.53%      1.64s 30.20%  io.ReadAtLeast
+         0     0% 98.53%      1.64s 30.20%  io.ReadFull (inline)
+         0     0% 98.53%      1.64s 30.20%  net.(*conn).Read
+         0     0% 98.53%      1.83s 33.70%  net.(*conn).Write
+         0     0% 98.53%      1.64s 30.20%  net.(*netFD).Read
+         0     0% 98.53%      0.18s  3.31%  runtime.entersyscallWakeSysmon
+         0     0% 98.53%      1.66s 30.57%  runtime.findRunnable
+         0     0% 98.53%      0.11s  2.03%  runtime.injectglist
+         0     0% 98.53%      0.07s  1.29%  runtime.injectglist.func1
+         0     0% 98.53%      0.03s  0.55%  runtime.lock (inline)
+         0     0% 98.53%      0.03s  0.55%  runtime.lock2
+         0     0% 98.53%      0.03s  0.55%  runtime.lockWithRank (inline)

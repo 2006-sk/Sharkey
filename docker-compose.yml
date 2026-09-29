@@ -1,0 +1,50 @@
+# One coordinator + four storage nodes.
+#
+#   docker compose up --build
+#
+# Host ports:
+#   coordinator  KV protocol localhost:7100   HTTP localhost:8100 (/health /stats /locate?key=)
+#   node1..4     KV protocol localhost:7101-7104   HTTP localhost:8101-8104
+#
+# Then, from the host:  go run ./cmd/client put hello world  (or bin/client)
+x-node: &node
+  build: .
+  image: distkv:latest
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "client", "--addr", "localhost:7100", "health"]
+    interval: 5s
+    timeout: 2s
+    retries: 3
+
+services:
+  node1:
+    <<: *node
+    command: ["node", "--port", "7101", "--cache-capacity", "10000"]
+    ports: ["7101:7101", "8101:8101"]
+    healthcheck: { test: ["CMD", "client", "--addr", "localhost:7101", "health"], interval: 5s, timeout: 2s, retries: 3 }
+  node2:
+    <<: *node
+    command: ["node", "--port", "7102", "--cache-capacity", "10000"]
+    ports: ["7102:7102", "8102:8102"]
+    healthcheck: { test: ["CMD", "client", "--addr", "localhost:7102", "health"], interval: 5s, timeout: 2s, retries: 3 }
+  node3:
+    <<: *node
+    command: ["node", "--port", "7103", "--cache-capacity", "10000"]
+    ports: ["7103:7103", "8103:8103"]
+    healthcheck: { test: ["CMD", "client", "--addr", "localhost:7103", "health"], interval: 5s, timeout: 2s, retries: 3 }
+  node4:
+    <<: *node
+    command: ["node", "--port", "7104", "--cache-capacity", "10000"]
+    ports: ["7104:7104", "8104:8104"]
+    healthcheck: { test: ["CMD", "client", "--addr", "localhost:7104", "health"], interval: 5s, timeout: 2s, retries: 3 }
+  coordinator:
+    <<: *node
+    command:
+      - coordinator
+      - --port=7100
+      - --nodes=node1:7101,node2:7102,node3:7103,node4:7104
+      - --replication=3
+      - --write-quorum=2
+    ports: ["7100:7100", "8100:8100"]
+    depends_on: [node1, node2, node3, node4]

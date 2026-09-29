@@ -1,0 +1,62 @@
+[11:28:54] building binaries into bin/
+
+==> 1. start a 4-node cluster (N=3, W=2, R=1)
+[11:28:54] cluster up: coordinator :7100, 4 nodes (localhost:7101,localhost:7102,localhost:7103,localhost:7104), cache=10000 
+
+==> 2. PUT 10000 keys
+bulk-put: 10000 keys, 0 failures, 239ms
+
+==> 3. GET all 10000 keys and verify values
+bulk-get: 10000 keys, 0 failures, 172ms
+
+==> 4. verify replication: each key present and correct on all 3 replicas (direct node reads)
+verify-replication: 10000 keys, 30000 replica copies verified, 0 failures
+
+==> 5. DELETE every 2nd key, verify deletes (coordinator and every replica)
+bulk-delete: 10000 keys, 0 failures, 114ms
+bulk-get: 10000 keys, 0 failures, 177ms
+verify-replication: 10000 keys, 30000 replica copies verified, 0 failures
+
+==> 6. kill -9 node 2 (32422)
+
+==> 7. immediately GET everything again (replica fallback, before/while failure is detected)
+bulk-get: 10000 keys, 0 failures, 161ms
+scripts/validate.sh: line 38: 32422 Killed: 9               "$BIN/node" --port "$port" --cache-capacity "$cache" >> "$RUN_DIR/logs/node$i.log" 2>&1
+
+==> 8. PUT 10000 new keys while node 2 is down (W=2 of 3 still reachable)
+bulk-put: 10000 keys, 0 failures, 197ms
+bulk-get: 10000 keys, 0 failures, 164ms
+{
+  "healthy_nodes": 3,
+  "status": "degraded",
+  "syncing_nodes": 0,
+  "unhealthy_nodes": 1
+}
+
+==> 9. restart node 2 (empty: in-memory storage) and wait for resync
+{
+  "healthy_nodes": 4,
+  "status": "ok",
+  "syncing_nodes": 0,
+  "unhealthy_nodes": 0
+}
+coordinator 2026/09/29 11:28:56.300453 node localhost:7102: HEALTHY -> UNHEALTHY (consecutive failures: dial localhost:7102: dial tcp [::1]:7102: connect: connection refused)
+coordinator 2026/09/29 11:28:58.514514 node localhost:7102: UNHEALTHY -> SYNCING (boot ID changed: node restarted)
+coordinator 2026/09/29 11:28:58.553396 resync of localhost:7102 complete: 30186 entries pushed in 38ms
+coordinator 2026/09/29 11:28:58.553452 node localhost:7102: SYNCING -> HEALTHY (resync complete)
+
+==> 10. verify the restarted node holds every key it replicates (including writes and deletes it missed)
+verify-replication: 10000 keys, 30000 replica copies verified, 0 failures
+verify-replication: 10000 keys, 30000 replica copies verified, 0 failures
+
+==> 11. coordinator stats
+requests=105019 gets=40000 puts=20000 deletes=5000 errors=0
+replication: {"read_fallbacks": 4543, "read_repairs": 0, "replica_writes_skipped_unhealthy": 7476, "resync_entries_pushed": 30186, "resyncs_completed": 1, "write_quorum_failures": 0}
+health: {"healthy_nodes": 4, "status": "ok", "syncing_nodes": 0, "unhealthy_nodes": 0}
+  localhost:7101 HEALTHY  keys=10743  repl_ops=11448  sync_ops=0      transitions=0
+  localhost:7102 HEALTHY  keys=11261  repl_ops=0      sync_ops=30186  transitions=3
+  localhost:7103 HEALTHY  keys=11519  repl_ops=12843  sync_ops=0      transitions=0
+  localhost:7104 HEALTHY  keys=11477  repl_ops=12482  sync_ops=0      transitions=0
+
+==> VALIDATION PASSED
+[11:28:59] cluster stopped

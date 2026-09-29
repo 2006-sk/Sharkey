@@ -1,0 +1,126 @@
+{
+  "label": "rebalance",
+  "keys": 100000,
+  "virtual_nodes": 128,
+  "transitions": [
+    {
+      "from_nodes": 1,
+      "to_nodes": 2,
+      "consistent_moved": 48842,
+      "consistent_moved_pct": 48.842,
+      "modulo_moved": 49706,
+      "modulo_moved_pct": 49.706,
+      "ideal_pct": 50,
+      "only_affected_nodes_changed": true
+    },
+    {
+      "from_nodes": 2,
+      "to_nodes": 3,
+      "consistent_moved": 34194,
+      "consistent_moved_pct": 34.194,
+      "modulo_moved": 66598,
+      "modulo_moved_pct": 66.598,
+      "ideal_pct": 33.333333333333336,
+      "only_affected_nodes_changed": true
+    },
+    {
+      "from_nodes": 3,
+      "to_nodes": 4,
+      "consistent_moved": 26019,
+      "consistent_moved_pct": 26.019,
+      "modulo_moved": 75285,
+      "modulo_moved_pct": 75.285,
+      "ideal_pct": 25,
+      "only_affected_nodes_changed": true
+    },
+    {
+      "from_nodes": 4,
+      "to_nodes": 5,
+      "consistent_moved": 21462,
+      "consistent_moved_pct": 21.462,
+      "modulo_moved": 80017,
+      "modulo_moved_pct": 80.017,
+      "ideal_pct": 20,
+      "only_affected_nodes_changed": true
+    },
+    {
+      "from_nodes": 8,
+      "to_nodes": 9,
+      "consistent_moved": 13900,
+      "consistent_moved_pct": 13.9,
+      "modulo_moved": 88774,
+      "modulo_moved_pct": 88.774,
+      "ideal_pct": 11.11111111111111,
+      "only_affected_nodes_changed": true
+    },
+    {
+      "from_nodes": 5,
+      "to_nodes": 4,
+      "consistent_moved": 21462,
+      "consistent_moved_pct": 21.462,
+      "modulo_moved": 80017,
+      "modulo_moved_pct": 80.017,
+      "ideal_pct": 20,
+      "only_affected_nodes_changed": true
+    },
+    {
+      "from_nodes": 8,
+      "to_nodes": 7,
+      "consistent_moved": 13386,
+      "consistent_moved_pct": 13.386,
+      "modulo_moved": 87502,
+      "modulo_moved_pct": 87.502,
+      "ideal_pct": 12.5,
+      "only_affected_nodes_changed": true
+    }
+  ],
+  "balance": [
+    {
+      "virtual_nodes": 1,
+      "nodes": 4,
+      "min_keys": 10881,
+      "max_keys": 35952,
+      "max_over_ideal": 1.43808,
+      "stddev_pct": 37.29674570254086
+    },
+    {
+      "virtual_nodes": 8,
+      "nodes": 4,
+      "min_keys": 14328,
+      "max_keys": 37272,
+      "max_over_ideal": 1.49088,
+      "stddev_pct": 33.12263612697516
+    },
+    {
+      "virtual_nodes": 32,
+      "nodes": 4,
+      "min_keys": 23243,
+      "max_keys": 26760,
+      "max_over_ideal": 1.0704,
+      "stddev_pct": 5.984298789331963
+    },
+    {
+      "virtual_nodes": 128,
+      "nodes": 4,
+      "min_keys": 24024,
+      "max_keys": 26019,
+      "max_over_ideal": 1.04076,
+      "stddev_pct": 2.855432716769912
+    },
+    {
+      "virtual_nodes": 256,
+      "nodes": 4,
+      "min_keys": 24714,
+      "max_keys": 25514,
+      "max_over_ideal": 1.02056,
+      "stddev_pct": 1.2381179265320408
+    }
+  ],
+  "host": {
+    "go_version": "go1.27.1",
+    "os": "darwin",
+    "arch": "arm64",
+    "cpus": 15,
+    "hostname": "MacBook-Pro-3.local"
+  }
+}

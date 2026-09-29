@@ -1,0 +1,244 @@
+{
+  "label": "scaling-rf3-n1",
+  "started_at": "2026-09-29T17:59:13.754478Z",
+  "host": {
+    "go_version": "go1.27.1",
+    "os": "darwin",
+    "arch": "arm64",
+    "cpus": 15,
+    "hostname": "MacBook-Pro-3.local",
+    "load_avg_1m_start": 8.95,
+    "load_avg_1m_end": 13.41
+  },
+  "config": {
+    "label": "scaling-rf3-n1",
+    "address": "localhost:7100",
+    "clients": 100,
+    "requests": 0,
+    "duration_ns": 15000000000,
+    "warmup_ns": 3000000000,
+    "read_ratio": 0.8,
+    "keyspace": 100000,
+    "value_size": 100,
+    "distribution": "uniform",
+    "zipf_theta": 0.99,
+    "preload": true,
+    "request_timeout_ns": 5000000000,
+    "seed": 1,
+    "timeline_interval_ns": 1000000000,
+    "probe_interval_ns": 10000000
+  },
+  "cluster_config": {
+    "virtual_nodes": 128,
+    "replication_factor": 1,
+    "write_quorum": 1,
+    "read_quorum": 1,
+    "health_interval_ms": 2000,
+    "request_timeout_ms": 1000,
+    "failure_threshold": 3
+  },
+  "cluster_nodes": 1,
+  "total_ops": 1028079,
+  "successes": 1028079,
+  "errors": 0,
+  "elapsed_sec": 15.000577417,
+  "ops_per_sec": 68535.96174470514,
+  "latency": {
+    "count": 1028079,
+    "mean_us": 1458.43218756438,
+    "p50_us": 1450.25,
+    "p95_us": 1815.708,
+    "p99_us": 2023.709,
+    "p999_us": 2442.75,
+    "max_us": 4556.583
+  },
+  "get": {
+    "count": 823080,
+    "errors": 0,
+    "ops_per_sec": 54869.88781293258,
+    "latency": {
+      "count": 823080,
+      "mean_us": 1458.128069479273,
+      "p50_us": 1450.042,
+      "p95_us": 1814.834,
+      "p99_us": 2021.916,
+      "p999_us": 2427.625,
+      "max_us": 4556.583
+    }
+  },
+  "put": {
+    "count": 204999,
+    "errors": 0,
+    "ops_per_sec": 13666.07393177257,
+    "latency": {
+      "count": 204999,
+      "mean_us": 1459.6532350499272,
+      "p50_us": 1450.875,
+      "p95_us": 1819.084,
+      "p99_us": 2030.375,
+      "p999_us": 2500.958,
+      "max_us": 4498.875
+    }
+  },
+  "cache": {
+    "hits": 82322,
+    "misses": 740758,
+    "evictions": 740757,
+    "hit_rate": 0.10001700928220829,
+    "available": true
+  },
+  "write_coalescing": {
+    "coordinator_frames": 2056918,
+    "coordinator_write_syscalls": 1175957,
+    "coordinator_frames_per_write": 1.7491438887646402,
+    "node_frames": 1028087,
+    "node_write_syscalls": 112046,
+    "node_frames_per_write": 9.175579672634454
+  },
+  "timeline": [
+    {
+      "t_ms": 0,
+      "ops": 68407,
+      "errors": 0,
+      "p99_us": 2111,
+      "max_us": 3599,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68407
+    },
+    {
+      "t_ms": 1000,
+      "ops": 67946,
+      "errors": 0,
+      "p99_us": 2175,
+      "max_us": 4556,
+      "healthy_nodes": 1,
+      "ops_per_sec": 67946
+    },
+    {
+      "t_ms": 2000,
+      "ops": 68407,
+      "errors": 0,
+      "p99_us": 2047,
+      "max_us": 2957,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68407
+    },
+    {
+      "t_ms": 3000,
+      "ops": 68301,
+      "errors": 0,
+      "p99_us": 2015,
+      "max_us": 2844,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68301
+    },
+    {
+      "t_ms": 4000,
+      "ops": 68868,
+      "errors": 0,
+      "p99_us": 2015,
+      "max_us": 2953,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68868
+    },
+    {
+      "t_ms": 5000,
+      "ops": 69003,
+      "errors": 0,
+      "p99_us": 2015,
+      "max_us": 2895,
+      "healthy_nodes": 1,
+      "ops_per_sec": 69003
+    },
+    {
+      "t_ms": 6000,
+      "ops": 69231,
+      "errors": 0,
+      "p99_us": 1983,
+      "max_us": 3000,
+      "healthy_nodes": 1,
+      "ops_per_sec": 69231
+    },
+    {
+      "t_ms": 7000,
+      "ops": 68734,
+      "errors": 0,
+      "p99_us": 2015,
+      "max_us": 3027,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68734
+    },
+    {
+      "t_ms": 8000,
+      "ops": 68960,
+      "errors": 0,
+      "p99_us": 2015,
+      "max_us": 3457,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68960
+    },
+    {
+      "t_ms": 9000,
+      "ops": 67693,
+      "errors": 0,
+      "p99_us": 2111,
+      "max_us": 3178,
+      "healthy_nodes": 1,
+      "ops_per_sec": 67693
+    },
+    {
+      "t_ms": 10000,
+      "ops": 68979,
+      "errors": 0,
+      "p99_us": 2015,
+      "max_us": 3472,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68979
+    },
+    {
+      "t_ms": 11000,
+      "ops": 68627,
+      "errors": 0,
+      "p99_us": 2047,
+      "max_us": 3092,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68627
+    },
+    {
+      "t_ms": 12000,
+      "ops": 68105,
+      "errors": 0,
+      "p99_us": 2047,
+      "max_us": 3624,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68105
+    },
+    {
+      "t_ms": 13000,
+      "ops": 68164,
+      "errors": 0,
+      "p99_us": 2047,
+      "max_us": 3290,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68164
+    },
+    {
+      "t_ms": 14000,
+      "ops": 68654,
+      "errors": 0,
+      "p99_us": 1983,
+      "max_us": 3083,
+      "healthy_nodes": 1,
+      "ops_per_sec": 68654
+    },
+    {
+      "t_ms": 15000,
+      "ops": 0,
+      "errors": 0,
+      "p99_us": 0,
+      "max_us": 0,
+      "healthy_nodes": 1,
+      "ops_per_sec": 0
+    }
+  ]
+}

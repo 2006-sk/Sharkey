@@ -1,0 +1,33 @@
+File: coordinator
+Type: cpu
+Time: 2026-09-29 11:25:41 PDT
+Duration: 10.11s, Total samples = 52.08s (515.31%)
+Showing nodes accounting for 51.17s, 98.25% of 52.08s total
+Dropped 153 nodes (cum <= 0.26s)
+Showing top 25 nodes out of 72
+      flat  flat%   sum%        cum   cum%
+    30.25s 58.08% 58.08%     30.25s 58.08%  syscall.rawsyscalln
+     8.80s 16.90% 74.98%      8.80s 16.90%  runtime.usleep
+     5.77s 11.08% 86.06%      5.77s 11.08%  runtime.pthread_cond_wait
+     3.47s  6.66% 92.72%      3.47s  6.66%  runtime.pthread_cond_signal
+     2.30s  4.42% 97.14%      2.30s  4.42%  runtime.kevent
+     0.28s  0.54% 97.68%      0.29s  0.56%  runtime.nanotime1
+     0.09s  0.17% 97.85%     10.91s 20.95%  runtime.lock2
+     0.06s  0.12% 97.96%      2.13s  4.09%  runtime.unlock2
+     0.03s 0.058% 98.02%      0.50s  0.96%  runtime.runqgrab
+     0.02s 0.038% 98.06%     16.21s 31.13%  distkv/internal/transport.(*frameWriter).flush
+     0.02s 0.038% 98.10%      0.56s  1.08%  runtime.stealWork
+     0.02s 0.038% 98.14%      2.06s  3.96%  runtime.unlock2Wake
+     0.01s 0.019% 98.16%     14.38s 27.61%  bufio.(*Reader).Read
+     0.01s 0.019% 98.18%      5.29s 10.16%  distkv/internal/replication.(*Replicator).send
+     0.01s 0.019% 98.20%     16.22s 31.14%  distkv/internal/transport.(*frameWriter).write
+     0.01s 0.019% 98.21%     15.50s 29.76%  runtime.findRunnable
+     0.01s 0.019% 98.23%     15.96s 30.65%  runtime.schedule
+     0.01s 0.019% 98.25%      0.46s  0.88%  runtime.systemstack
+         0     0% 98.25%      3.35s  6.43%  distkv/internal/coordinator.(*Coordinator).Handle
+         0     0% 98.25%     14.40s 27.65%  distkv/internal/protocol.ReadFrame
+         0     0% 98.25%      3.32s  6.37%  distkv/internal/replication.(*Replicator).Read
+         0     0% 98.25%      1.98s  3.80%  distkv/internal/replication.(*Replicator).Write.func1
+         0     0% 98.25%      3.32s  6.37%  distkv/internal/replication.(*Replicator).readOne
+         0     0% 98.25%      5.18s  9.95%  distkv/internal/transport.(*MuxConn).Do
+         0     0% 98.25%      3.26s  6.26%  distkv/internal/transport.(*MuxConn).readLoop

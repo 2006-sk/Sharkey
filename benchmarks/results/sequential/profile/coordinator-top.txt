@@ -1,0 +1,33 @@
+File: coordinator
+Type: cpu
+Time: 2026-09-29 11:26:03 PDT
+Duration: 10.11s, Total samples = 45.80s (453.19%)
+Showing nodes accounting for 45.31s, 98.93% of 45.80s total
+Dropped 140 nodes (cum <= 0.23s)
+Showing top 25 nodes out of 61
+      flat  flat%   sum%        cum   cum%
+    34.25s 74.78% 74.78%     34.25s 74.78%  syscall.rawsyscalln
+     4.38s  9.56% 84.34%      4.38s  9.56%  runtime.pthread_cond_wait
+     2.55s  5.57% 89.91%      2.55s  5.57%  runtime.usleep
+     2.01s  4.39% 94.30%      2.01s  4.39%  runtime.kevent
+     1.95s  4.26% 98.56%      1.95s  4.26%  runtime.pthread_cond_signal
+     0.03s 0.066% 98.62%      3.20s  6.99%  runtime.lock2
+     0.02s 0.044% 98.67%      0.26s  0.57%  runtime.runqgrab
+     0.02s 0.044% 98.71%      0.30s  0.66%  runtime.stealWork
+     0.02s 0.044% 98.76%      0.44s  0.96%  runtime.unlock2Wake
+     0.01s 0.022% 98.78%     20.16s 44.02%  distkv/internal/replication.(*Replicator).send
+     0.01s 0.022% 98.80%     25.53s 55.74%  distkv/internal/transport.(*Server).serveConn
+     0.01s 0.022% 98.82%      1.49s  3.25%  runtime.injectglist
+     0.01s 0.022% 98.84%      2.01s  4.39%  runtime.netpoll
+     0.01s 0.022% 98.86%      0.27s  0.59%  runtime.runqsteal
+     0.01s 0.022% 98.89%        11s 24.02%  runtime.schedule
+     0.01s 0.022% 98.91%      0.45s  0.98%  runtime.unlock2
+     0.01s 0.022% 98.93%      0.49s  1.07%  runtime.wakep
+         0     0% 98.93%     16.94s 36.99%  bufio.(*Reader).Read
+         0     0% 98.93%     11.22s 24.50%  distkv/internal/coordinator.(*Coordinator).Handle
+         0     0% 98.93%     16.96s 37.03%  distkv/internal/protocol.ReadFrame
+         0     0% 98.93%     11.21s 24.48%  distkv/internal/replication.(*Replicator).Read
+         0     0% 98.93%      8.97s 19.59%  distkv/internal/replication.(*Replicator).Write.func1
+         0     0% 98.93%     11.21s 24.48%  distkv/internal/replication.(*Replicator).readOne
+         0     0% 98.93%     20.09s 43.86%  distkv/internal/transport.(*Conn).Do
+         0     0% 98.93%     20.03s 43.73%  distkv/internal/transport.(*Conn).roundTrip
