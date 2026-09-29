@@ -1,3 +1,6 @@
+// Tests for the cluster package: the registry's HEALTHY/UNHEALTHY/SYNCING state
+// machine, restart detection via boot IDs, resync generations, and the
+// active health checker against real (and deliberately hung) TCP servers.
 package cluster
 
 import (
@@ -14,16 +17,25 @@ import (
 	"distkv/internal/transport"
 )
 
+// quiet discards the registry's state-transition log lines so test output
+// stays readable.
 var quiet = log.New(io.Discard, "", 0)
 
+// newPool builds a small connection pool (200 ms dial timeout, 4
+// connections, default max frame size) for each registered member.
 func newPool(addr string) *transport.Pool { return transport.NewPool(addr, 200*time.Millisecond, 4, 0) }
 
+// syncRecorder stands in for the coordinator's resync loop (the SyncFunc). It
+// records every generation it is asked to sync and forwards it on ch, so a
+// test can wait for the sync request (which runs in its own goroutine) and
+// then decide itself when, and with which generation, to call MarkSynced.
 type syncRecorder struct {
 	mu    sync.Mutex
 	calls []int
 	ch    chan int
 }
 
+// fn is the SyncFunc handed to NewRegistry.
 func (s *syncRecorder) fn(addr string, gen int) {
 	s.mu.Lock()
 	s.calls = append(s.calls, gen)
@@ -31,6 +43,14 @@ func (s *syncRecorder) fn(addr string, gen int) {
 	s.ch <- gen
 }
 
+// TestStateMachine walks one member through the whole state machine:
+// HEALTHY -> (3 consecutive failures) -> UNHEALTHY -> (health check) ->
+// SYNCING -> (MarkSynced) -> HEALTHY. It proves that failures must be
+// CONSECUTIVE (a success resets the streak, so one blip never trips the
+// detector), that a data-request success cannot revive an UNHEALTHY node
+// (only a health check can, so a returning node always resyncs first), and
+// that SYNCING means writable-but-not-readable. Each of these guards against
+// serving reads from a node that may be missing data.
 func TestStateMachine(t *testing.T) {
 	rec := &syncRecorder{ch: make(chan int, 10)}
 	r := NewRegistry(3, newPool, rec.fn, quiet)
@@ -71,6 +91,12 @@ func TestStateMachine(t *testing.T) {
 	}
 }
 
+// TestBootIDChangeTriggersSync proves fast-restart detection: a node whose
+// boot ID changes goes to SYNCING even though no health check ever failed.
+// Without this, a node that restarted (and lost its in-memory data) between
+// two pings would stay HEALTHY and answer "not found" for keys it should
+// hold. It also checks that repeated checks with the SAME boot ID do not
+// trigger needless resyncs.
 func TestBootIDChangeTriggersSync(t *testing.T) {
 	rec := &syncRecorder{ch: make(chan int, 10)}
 	r := NewRegistry(3, newPool, rec.fn, quiet)
@@ -88,6 +114,13 @@ func TestBootIDChangeTriggersSync(t *testing.T) {
 	<-rec.ch
 }
 
+// TestStaleSyncGenerationIgnored proves that resync generations work: when a
+// node fails and recovers again while an earlier resync is still running,
+// the earlier (superseded) generation can neither promote the node via
+// MarkSynced nor keep running (SyncStillWanted is false for it), while the
+// newest generation can. This prevents a stale resync, whose copies may have
+// gone to a now-lost incarnation, from marking the node HEALTHY. A threshold
+// of 1 makes each single ReportFailure mark the node UNHEALTHY.
 func TestStaleSyncGenerationIgnored(t *testing.T) {
 	rec := &syncRecorder{ch: make(chan int, 10)}
 	r := NewRegistry(1, newPool, rec.fn, quiet)
@@ -111,6 +144,9 @@ func TestStaleSyncGenerationIgnored(t *testing.T) {
 	}
 }
 
+// startNode runs a real storage node on addr ("127.0.0.1:0" picks a free
+// port) and returns it with its actual listen address, so health checks go
+// over real TCP.
 func startNode(t *testing.T, addr string) (*node.Node, string) {
 	t.Helper()
 	cfg := node.DefaultConfig()
@@ -124,6 +160,12 @@ func startNode(t *testing.T, addr string) (*node.Node, string) {
 	return n, ln.Addr().String()
 }
 
+// TestHealthCheckerDetectsFailureAndRecovery runs the active detector end to
+// end against a real node: healthy while up; still HEALTHY after one failed
+// round with threshold 2 (debouncing); UNHEALTHY after the second; and, once
+// a NEW process listens on the same address (new boot ID), SYNCING with a
+// resync requested, then HEALTHY after MarkSynced. It shows that the health
+// checker, not client traffic, is what brings a node back into service.
 func TestHealthCheckerDetectsFailureAndRecovery(t *testing.T) {
 	n, addr := startNode(t, "127.0.0.1:0")
 	rec := &syncRecorder{ch: make(chan int, 10)}
@@ -166,6 +208,12 @@ func TestHealthCheckerDetectsFailureAndRecovery(t *testing.T) {
 	}
 }
 
+// TestHealthCheckTimesOutOnHungNode proves that a node which accepts TCP
+// connections but never replies (like a SIGSTOPped process: the kernel still
+// completes the handshake) is detected by the ping timeout, and that a round
+// finishes in about the timeout rather than hanging forever. A health checker
+// without a per-ping deadline would block on such a node indefinitely and
+// never mark it down.
 func TestHealthCheckTimesOutOnHungNode(t *testing.T) {
 	// Accepts connections but never replies, like a SIGSTOPped process.
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
@@ -176,6 +224,9 @@ func TestHealthCheckTimesOutOnHungNode(t *testing.T) {
 			if err != nil {
 				return
 			}
+			// Deferred, not immediate: accepted connections stay open and
+			// silent until the accept loop exits (when ln is closed), so
+			// the ping can only end by timing out.
 			defer c.Close()
 		}
 	}()

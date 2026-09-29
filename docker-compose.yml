@@ -7,10 +7,26 @@
 #   node1..4     KV protocol localhost:7101-7104   HTTP localhost:8101-8104
 #
 # Then, from the host:  go run ./cmd/client put hello world  (or bin/client)
+#
+# Inside the compose network each service is reachable by its service name
+# (Docker's internal DNS), which is why the coordinator's --nodes list says
+# node1:7101 rather than localhost:7101. Tools on the host that follow the
+# coordinator's `locate` answer to talk to nodes directly (verify-replication)
+# would get these container names, which the host cannot resolve; they only
+# work with the non-Docker cluster (README "How to run").
+
+# "x-" keys are ignored by Compose (extension fields). This one holds the
+# settings shared by every service; `&node` names it as a YAML anchor and
+# `<<: *node` below merges it into each service, avoiding copy-paste.
 x-node: &node
+  # Build the image from the Dockerfile in this directory...
   build: .
+  # ...and tag it, so all five services reuse one image instead of five.
   image: distkv:latest
+  # Restart a crashed container, but not one stopped on purpose.
   restart: unless-stopped
+  # Default health check: the bundled client sends a protocol PING. Each
+  # node overrides it with its own port; the coordinator keeps this one.
   healthcheck:
     test: ["CMD", "client", "--addr", "localhost:7100", "health"]
     interval: 5s
@@ -18,6 +34,9 @@ x-node: &node
     retries: 3
 
 services:
+  # Storage nodes: the same image with command "node". Each gets its own port
+  # so host port N maps to container port N (and HTTP admin port N+1000),
+  # matching the non-Docker layout. --cache-capacity 10000 = LRU entries.
   node1:
     <<: *node
     command: ["node", "--port", "7101", "--cache-capacity", "10000"]
@@ -38,6 +57,8 @@ services:
     command: ["node", "--port", "7104", "--cache-capacity", "10000"]
     ports: ["7104:7104", "8104:8104"]
     healthcheck: { test: ["CMD", "client", "--addr", "localhost:7104", "health"], interval: 5s, timeout: 2s, retries: 3 }
+  # The coordinator: routes requests over the consistent-hash ring to the
+  # four nodes with replication factor 3 and write quorum 2.
   coordinator:
     <<: *node
     command:
@@ -47,4 +68,8 @@ services:
       - --replication=3
       - --write-quorum=2
     ports: ["7100:7100", "8100:8100"]
+    # depends_on only orders container START; it does not wait for the nodes
+    # to be ready. That is acceptable: the coordinator probes every node
+    # periodically (health checks every 2 s by default), so a node that
+    # comes up a moment later is found by a subsequent check.
     depends_on: [node1, node2, node3, node4]

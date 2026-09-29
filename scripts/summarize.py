@@ -11,6 +11,25 @@ Outputs:
     benchmarks/SUMMARY.md    markdown tables (also injected into README.md between markers)
     benchmarks/graphs/*.png  graphs (needs matplotlib; skipped if missing)
 """
+# ---------------------------------------------------------------- overview
+# Data flow:  cmd/benchmark --out file.json  ->  benchmarks/results/<tag>/<suite>/
+#             -> this script -> SUMMARY.md + README tables + PNG graphs.
+#
+# <tag> is the transport variant ("mux" = multiplexed, the current one;
+# "sequential" = the pre-optimisation baseline). <suite> is one test:
+# scaling (A), cache (B), concurrency (C), failure (D), rebalance (E),
+# plus profile (coordinator CPU profile).
+#
+# Each JSON file is one run. Runs of the same configuration share a
+# "label" (e.g. "scaling-rf3-n4") and differ in repeat number / seed.
+# A table row = one label; each number in it = the MEDIAN over that
+# label's runs. Why the median: with 3 repeats, one disturbed run (another
+# program on the laptop grabbing the CPU) moves the mean but not the median.
+# The min-max range is shown next to throughput so the reader can see the
+# spread instead of trusting a single number.
+#
+# Only the standard library is required for the tables; matplotlib is
+# optional and only needed for the graphs.
 import argparse
 import glob
 import json
@@ -18,6 +37,8 @@ import os
 import statistics
 from collections import defaultdict
 
+# Paths are derived from this file's location (scripts/..), so the script
+# works from any working directory.
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RESULTS = os.path.join(ROOT, "benchmarks", "results")
 GRAPHS = os.path.join(ROOT, "benchmarks", "graphs")
@@ -28,6 +49,10 @@ INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 SERIES = ["#2a78d6", "#eb6834", "#1baf7a"]
 
 
+# ---------------------------------------------------------------- loading
+# load: read every *.json in results/<tag>/<suite>/ and group the parsed
+# results by their "label" field -> {label: [run, run, run]}. sorted() makes
+# the order (and so runs[0], used for example timelines) deterministic.
 def load(tag, suite):
     """Group result files of one suite by label."""
     groups = defaultdict(list)
@@ -38,15 +63,20 @@ def load(tag, suite):
     return groups
 
 
+# med: apply fn to every run (fn picks one number out of a result dict) and
+# return (median, min, max). Every table cell is built from this triple.
 def med(runs, fn):
     vals = [fn(r) for r in runs]
     return statistics.median(vals), min(vals), max(vals)
 
 
+# fmt_rate: just the median of a (median, min, max) triple, with thousands
+# separators ("50,695").
 def fmt_rate(m):
     return f"{m[0]:,.0f}"
 
 
+# fmt_rng: "median (min-max)", or only the median when all runs agree.
 def fmt_rng(m, unit=""):
     v, lo, hi = m
     if lo == hi:
@@ -54,15 +84,25 @@ def fmt_rng(m, unit=""):
     return f"{v:,.0f}{unit} ({lo:,.0f}-{hi:,.0f})"
 
 
+# us: format a latency given in microseconds; switch to ms at >= 1000 us so
+# the table stays readable across 60 us ... 1000 ms.
 def us(v):
     return f"{v/1000:.2f} ms" if v >= 1000 else f"{v:.0f} µs"
 
 
+# lat: median/min/max of one latency percentile (key like "p99_us") across
+# runs; op="get"/"put" selects the per-operation latency instead of the
+# overall one. The percentiles themselves were computed by the benchmark as
+# exact nearest-rank percentiles over all samples of a run; here we only
+# take the median of those per-run values.
 def lat(runs, key, op=None):
     src = (lambda r: r[op]["latency"][key]) if op else (lambda r: r["latency"][key])
     return med(runs, src)
 
 
+# host_line: one-line machine description (OS/arch, CPUs, Go version) taken
+# from the first run, printed in the header so readers know where the
+# numbers come from.
 def host_line(runs):
     h = runs[0]["host"]
     return f"{h['os']}/{h['arch']}, {h['cpus']} CPUs, {h['go_version']}"
@@ -70,12 +110,18 @@ def host_line(runs):
 
 # ---------------------------------------------------------------- tables
 
+# table: render a GitHub-flavoured Markdown table. The separator row uses
+# ":---" (left-aligned) for the first column and "---:" (right-aligned) for
+# all numeric columns, so digits line up.
 def table(headers, rows):
     out = ["| " + " | ".join(headers) + " |", "|" + "|".join("---:" if i else ":---" for i in range(len(headers))) + "|"]
     out += ["| " + " | ".join(str(c) for c in row) + " |" for row in rows]
     return "\n".join(out)
 
 
+# load_row: the standard row used by several tests: throughput with range,
+# then p50/p95/p99/max of the overall latency, median error count and the
+# number of runs (so a missing repeat is visible in the table).
 def load_row(label, runs):
     return [
         label,
@@ -89,9 +135,13 @@ def load_row(label, runs):
     ]
 
 
+# Column headers matching load_row's cells.
 LOAD_HEADERS = ["config", "ops/s median (range)", "p50", "p95", "p99", "max", "errors", "runs"]
 
 
+# scaling_section (Test A): one row per (RF, node count). Returns the
+# Markdown plus `series` = {rf: [(nodes, (median, min, max) ops/s, p99)]}
+# for the throughput-vs-nodes graph.
 def scaling_section(tag):
     g = load(tag, "scaling")
     if not g:
@@ -102,8 +152,16 @@ def scaling_section(tag):
             runs = g.get(f"scaling-rf{rf}-n{n}")
             if not runs:
                 continue
+            # Effective RF: with fewer nodes than the replication factor, each
+            # key can only have as many replicas as there are nodes.
             eff = min(rf, n)
+            # Reuse load_row's cells but replace its label with a descriptive one.
             row = [f"{n} node{'s' if n > 1 else ''}, RF={rf} (effective {eff})"] + load_row("", runs)[1:]
+            # Write coalescing = protocol frames per write() syscall, measured as
+            # a before/after delta of cluster counters by the benchmark. It
+            # explains the scaling curve (less batching with more nodes).
+            # Older runs without the field get a dash. insert(-1, ...) places
+            # the column just before the final "runs" column.
             if all(r.get("write_coalescing") for r in runs):
                 cf = med(runs, lambda r: r["write_coalescing"]["coordinator_frames_per_write"])[0]
                 nf = med(runs, lambda r: r["write_coalescing"]["node_frames_per_write"])[0]
@@ -112,6 +170,9 @@ def scaling_section(tag):
                 row.insert(-1, "—")
             rows.append(row)
             series.setdefault(rf, []).append((n, med(runs, lambda r: r["ops_per_sec"]), lat(runs, "p99_us")[0]))
+    # The section's description line is filled from a run's recorded config
+    # (clients, read ratio, keyspace, durations), not typed by hand, so it
+    # cannot drift from what was actually run.
     any_runs = next(iter(g.values()))
     c = any_runs[0]["config"]
     md = f"### Test A — scaling with node count\n\n{c['clients']} clients, {c['read_ratio']:.0%} GET, uniform keys over {c['keyspace']:,}, {c['value_size']} B values, {c['duration_ns']/1e9:.0f} s per run after {c['warmup_ns']/1e9:.0f} s warm-up.\n\n"
@@ -119,6 +180,10 @@ def scaling_section(tag):
     return md, series
 
 
+# cache_section (Test B): one row per (distribution, cache capacity). Uses
+# GET latency (the cache only affects reads). Hit rate is the benchmark's
+# delta of cluster-wide cache hits/misses over the measured phase, so
+# preload and warm-up are excluded. Returns `data` for the cache bar chart.
 def cache_section(tag):
     g = load(tag, "cache")
     if not g:
@@ -142,6 +207,8 @@ def cache_section(tag):
     return md, data
 
 
+# concurrency_section (Test C): one row per client count; returns points
+# (clients, ops/s triple, p50, p99) for the latency/throughput graph.
 def concurrency_section(tag):
     g = load(tag, "concurrency")
     if not g:
@@ -159,6 +226,12 @@ def concurrency_section(tag):
     return md, pts
 
 
+# failure_section (Test D): one row per fault mode, each cell the median of
+# a field of the benchmark's "fault" report (computed in the Go runner from
+# the 100 ms timeline, the health samples and the probe samples).
+# timelines[mode] keeps the FIRST run of each mode for the timeline graph:
+# a median of timelines is not meaningful, so one representative run is
+# plotted.
 def failure_section(tag):
     g = load(tag, "failure")
     if not g:
@@ -168,6 +241,7 @@ def failure_section(tag):
         runs = g.get(f"failure-{mode}")
         if not runs:
             continue
+        # Shorthand: median/min/max of one fault-report field across runs.
         f = lambda key: med(runs, lambda r: r["fault"][key])
         rows.append([
             "kill -9 (crash)" if mode == "crash" else "SIGSTOP (hang)",
@@ -195,6 +269,12 @@ def failure_section(tag):
     return md, timelines
 
 
+# rebalance_section (Test E): a single offline, deterministic run (no
+# repeats needed). First table: % of keys that change owner for each
+# membership change, consistent hashing vs hash % N vs the theoretical
+# minimum (the fraction the added/removed node must take/give), plus the
+# invariant that only keys of the changed node moved. Second table: how
+# evenly keys spread over 4 nodes as the virtual-node count grows.
 def rebalance_section(tag):
     path = os.path.join(RESULTS, tag, "rebalance", "rebalance.json")
     if not os.path.exists(path):
@@ -211,6 +291,9 @@ def rebalance_section(tag):
     return md, r
 
 
+# transport_section: compares identical labels from the two result trees
+# (results/sequential vs results/mux). Only pairs present in BOTH are
+# shown, and speed-up = median mux ops/s / median sequential ops/s.
 def transport_section():
     """Before/after table: identical configurations under both transports."""
     pairs = [("scaling", "scaling-rf3-n4", "4 nodes RF=3, 100 clients"),
@@ -234,6 +317,14 @@ def transport_section():
     return md, data
 
 
+# profile_section: parse `go tool pprof -top` text output with regexes.
+#   "Duration: 10s"          wall time of the profile window
+#   "Total samples = 45s"    CPU time sampled -> total/dur = cores busy
+#   the "flat" (first) column of the syscall.rawsyscalln line = CPU time
+#   spent inside that function, i.e. inside the read/write syscalls
+#   themselves -> sysc/dur = cores spent in syscalls
+# Divided by the ops/s of the load run that ran during the profile, this
+# gives CPU per operation, the metric behind "the system is syscall-bound".
 def profile_section():
     """Where coordinator CPU goes, from the saved pprof text + concurrent load run."""
     import re
@@ -263,6 +354,10 @@ def profile_section():
 
 # ---------------------------------------------------------------- graphs
 
+# ---------------------------------------------------------------- graphs (helpers)
+# setup_mpl: import matplotlib lazily so the tables work without it. The
+# "Agg" backend renders straight to PNG with no display (works over SSH and
+# in CI). rcParams set one consistent, minimal style for every chart.
 def setup_mpl():
     try:
         import matplotlib
@@ -281,11 +376,14 @@ def setup_mpl():
     return plt
 
 
+# thousands: y-axis tick labels like "50k" instead of "50000".
 def thousands(ax):
     from matplotlib.ticker import FuncFormatter
     ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v/1000:.0f}k" if v >= 1000 else f"{v:.0f}"))
 
 
+# save: write a figure to benchmarks/graphs/<name> at 160 dpi. When the
+# figure has a figure-level legend, leave the top 8% free for it.
 def save(fig, name, tight=True):
     os.makedirs(GRAPHS, exist_ok=True)
     if tight:
@@ -294,6 +392,9 @@ def save(fig, name, tight=True):
     print("wrote", os.path.relpath(os.path.join(GRAPHS, name), ROOT))
 
 
+# graph_scaling: median throughput per node count, one line per RF, with a
+# vertical bar per point spanning the min-max over repeats (vlines). Log2
+# x axis because node counts double (1, 2, 4, 8).
 def graph_scaling(plt, series):
     if not series:
         return
@@ -318,6 +419,10 @@ def graph_scaling(plt, series):
     plt.close(fig)
 
 
+# graph_concurrency: two panels. Left: throughput vs clients (flattens at
+# saturation). Right: p50 and p99 in ms vs clients (grows once the system is
+# saturated: extra clients only add queueing). Log x axis because client
+# counts span 1..250.
 def graph_concurrency(plt, pts):
     if not pts:
         return
@@ -347,6 +452,8 @@ def graph_concurrency(plt, pts):
     plt.close(fig)
 
 
+# graph_cache: three small bar charts (throughput, GET p99, hit rate), with
+# grouped bars (off/on) per distribution. Hit rate has only the "on" bar.
 def graph_cache(plt, data):
     if not data:
         return
@@ -365,6 +472,7 @@ def graph_cache(plt, data):
             for d in dists:
                 v = data[(d, cap)][key]
                 vals.append((v[0] if isinstance(v, tuple) else v) * scale)
+            # Grouped bars: offset the two bars of a group by +/- half a width.
             xs = [i + (j - 0.5) * width if key != "hit" else i for i in range(len(dists))]
             bars = ax.bar(xs, vals, width=width * 0.94, color=SERIES[j], label="cache off" if cap == 0 else "cache on")
             for b, v in zip(bars, vals):
@@ -382,6 +490,9 @@ def graph_cache(plt, data):
     plt.close(fig)
 
 
+# graph_rebalance: for node ADDITIONS only, % of keys moved by consistent
+# hashing vs hash % N, side by side. The gap between the bars is the point
+# of consistent hashing.
 def graph_rebalance(plt, r):
     if not r:
         return
@@ -406,6 +517,11 @@ def graph_rebalance(plt, r):
     plt.close(fig)
 
 
+# graph_failure: for each fault mode, throughput per 100 ms bucket (top) and
+# p99 and max latency per bucket (bottom, log scale because a 1 s timeout
+# stall and a 1 ms normal p99 must both be visible). Dashed line = moment the
+# fault command finished, dotted = moment recovery finished; both are the
+# timestamps the benchmark recorded on its own clock.
 def graph_failure(plt, timelines):
     if not timelines:
         return
@@ -438,6 +554,8 @@ def graph_failure(plt, timelines):
     plt.close(fig)
 
 
+# graph_transport: horizontal grouped bars, sequential vs multiplexed
+# median throughput for each shared configuration.
 def graph_transport(plt, data):
     if not data:
         return
@@ -462,10 +580,16 @@ def graph_transport(plt, data):
     plt.close(fig)
 
 
+# ---------------------------------------------------------------- main
+# main: choose the primary result set, build every section, write
+# SUMMARY.md, splice the same tables into README.md, then draw the graphs.
+# Sections whose results are missing return "" and are simply skipped, so a
+# partial result set still produces a (partial) summary.
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--primary", default=None, help="result set to summarize (default: mux if present, else sequential)")
     args = ap.parse_args()
+    # Prefer "mux" (current transport) when present.
     tags = [t for t in ("mux", "sequential") if os.path.isdir(os.path.join(RESULTS, t))]
     if not tags:
         raise SystemExit(f"no results under {RESULTS}")
@@ -482,6 +606,7 @@ def main():
     for md in (s_md, b_md, c_md, d_md, e_md, t_md, p_md):
         if md:
             sections.append(md)
+    # Machine description from the first live-cluster suite that has results.
     for suite in ("scaling", "concurrency", "cache", "failure"):
         g = load(primary, suite)
         if g:
@@ -505,6 +630,10 @@ def main():
         with open(readme) as f:
             text = f.read()
         if begin in text and end in text:
+            # Replace everything between the two markers (the markers stay),
+            # demoting headings one level (### -> ####) to fit under README's
+            # "## Benchmark results". Re-running is idempotent: the old tables
+            # are always replaced, never appended to.
             body = out.split("\n", 2)[2]  # drop the "# Benchmark summary" title
             body = body.replace("### ", "#### ")
             text = text[: text.index(begin) + len(begin)] + "\n" + body + "\n" + text[text.index(end):]
@@ -512,6 +641,7 @@ def main():
                 f.write(text)
             print("updated README.md results section")
 
+    # Graphs last, and only if matplotlib is available.
     plt = setup_mpl()
     if plt:
         graph_scaling(plt, s_series)

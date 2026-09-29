@@ -1,5 +1,13 @@
 package bench
 
+// bench_test.go tests the load generator's building blocks, so that the
+// benchmark numbers in the README can be trusted: a benchmark tool with a
+// bug in its key distribution or percentile maths produces confident,
+// wrong numbers, which is worse than no numbers.
+//
+// The tests are in package bench (not bench_test) so they can call
+// unexported functions like summarize.
+
 import (
 	"context"
 	"io"
@@ -10,6 +18,20 @@ import (
 	"distkv/internal/testcluster"
 )
 
+// TestZipfIsSkewed proves that the Zipf generator really produces a
+// heavy-headed distribution and stays in range.
+//
+// Why it matters: the cache test (Test B) is only meaningful if "zipf" keys
+// are genuinely skewed. A subtle bug in the Gray et al. formula (e.g. a wrong
+// η) could silently produce an almost-uniform distribution, making the cache
+// look useless. The test checks four properties:
+//  1. every draw is a valid index in [0, 100000);
+//  2. the top 100 ranks (0.1% of keys) get at least 30% of 500,000 draws,
+//     whereas uniform keys would give them ~0.1%;
+//  3. frequency decreases with rank (rank 0 > rank 10 > rank 1000);
+//  4. invalid θ (≥ 1) is rejected instead of producing garbage.
+//
+// A fixed PCG seed makes the draws, and therefore the test, deterministic.
 func TestZipfIsSkewed(t *testing.T) {
 	z, err := NewZipf(100000, 0.99)
 	if err != nil {
@@ -43,6 +65,15 @@ func TestZipfIsSkewed(t *testing.T) {
 	}
 }
 
+// TestSummarizePercentiles proves that summarize computes exact nearest-rank
+// percentiles and does not depend on input order.
+//
+// With samples 1..1000 µs the nearest-rank answers are known exactly:
+// p50 = 500, p95 = 950, p99 = 990, max = 1000. This also pins down the
+// floating-point "ceil" subtlety in summarize: 1000×0.95 must select rank
+// 950, not 951. Swapping the first and last sample makes the input unsorted,
+// so the test fails if summarize forgot to sort. Finally, an empty input must
+// yield an empty summary rather than panic with an index out of range.
 func TestSummarizePercentiles(t *testing.T) {
 	var s []time.Duration
 	for i := 1; i <= 1000; i++ {
@@ -59,6 +90,16 @@ func TestSummarizePercentiles(t *testing.T) {
 	}
 }
 
+// TestRebalance proves the three headline claims of the redistribution
+// experiment on 20,000 keys:
+//   - when growing 4 → 5 and shrinking 5 → 4, keys only move to added nodes or
+//     from removed nodes (never between two surviving nodes);
+//   - growing 4 → 5 moves under 30% of keys with consistent hashing (ideal
+//     20%) but over 70% with modulo sharding (expected ~80%);
+//   - 128 vnodes give a smaller load deviation than 1 vnode.
+//
+// The thresholds are loose on purpose: they catch a broken ring or a broken
+// comparison without being flaky about exact hash-dependent percentages.
 func TestRebalance(t *testing.T) {
 	r := Rebalance(20000, 128, [][2]int{{4, 5}, {5, 4}}, []int{1, 128}, 4)
 	add, remove := r.Transitions[0], r.Transitions[1]
@@ -74,6 +115,18 @@ func TestRebalance(t *testing.T) {
 }
 
 // TestRunAgainstCluster runs a short benchmark end to end.
+//
+// It starts a real 3-node cluster inside the test process (testcluster talks
+// real TCP over loopback), then runs Run with preload, Zipf keys, a timeline
+// and a probe. It proves the plumbing, not the performance:
+//   - exactly Requests (2000) operations run, split into GETs and PUTs, with
+//     no errors: the shared request budget in runPhase is exact;
+//   - no GET returns NotFound: the preload really wrote every key;
+//   - the cache delta is available and shows hits: stats snapshots and
+//     subtraction work, and Zipf keys produce cache hits;
+//   - percentiles are positive and ordered (p99 >= p50);
+//   - cluster size, timeline and probe samples are all populated;
+//   - Print does not panic on a real result.
 func TestRunAgainstCluster(t *testing.T) {
 	tc := testcluster.Start(t, testcluster.Options{Nodes: 3, CacheCapacity: 100})
 	cfg := Config{

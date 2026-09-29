@@ -1,3 +1,5 @@
+// Tests for the in-memory engine: last-writer-wins, tombstones, counters,
+// cursor pagination and concurrency.
 package storage
 
 import (
@@ -6,6 +8,10 @@ import (
 	"testing"
 )
 
+// TestApplyGet proves the basic round trip: a missing key reports ok=false,
+// the first write to a key is always applied (nothing older to lose to),
+// Get returns exactly the value and version written, and the live-key
+// counter moves from 0 to 1.
 func TestApplyGet(t *testing.T) {
 	m := NewMemory()
 	if _, ok := m.Get("missing"); ok {
@@ -23,6 +29,11 @@ func TestApplyGet(t *testing.T) {
 	}
 }
 
+// TestLastWriterWins proves the LWW rule that lets replicas converge:
+// a write with a lower version than the stored one is rejected and the
+// newer value survives (a delayed message cannot roll a key back), and a
+// write with an equal version is treated as a replay, not re-applied. The
+// second property is what makes retries and duplicate deliveries safe.
 func TestLastWriterWins(t *testing.T) {
 	m := NewMemory()
 	m.Apply("k", Entry{Value: []byte("new"), Version: 10})
@@ -37,6 +48,14 @@ func TestLastWriterWins(t *testing.T) {
 	}
 }
 
+// TestTombstones proves the delete semantics. A delete leaves a tombstone
+// (found, Tombstone=true, Value nil) instead of erasing the key. A late PUT
+// with an older version must NOT resurrect the key; this is exactly the
+// failure a plain map delete would allow. A PUT with a newer version does
+// legitimately revive it. A delete of a never-seen key still records a
+// tombstone, so a PUT older than the delete that arrives later is also
+// rejected. The Stats checks confirm the live/tombstone counters follow
+// every state transition.
 func TestTombstones(t *testing.T) {
 	m := NewMemory()
 	m.Apply("k", Entry{Value: []byte("v"), Version: 1})
@@ -64,6 +83,13 @@ func TestTombstones(t *testing.T) {
 	}
 }
 
+// TestScanVisitsEverythingOnce proves the pagination contract on a
+// quiescent store: following cursors from an empty cursor until next is nil
+// returns every key (live or tombstone) exactly once, spread over many pages
+// (4 KiB pages over 5000 entries). Tombstones must be included because
+// resync copies them too; otherwise a recovering replica would never learn
+// about deletes. Finally, a cursor shorter than the 4-byte shard prefix
+// must be rejected with an error.
 func TestScanVisitsEverythingOnce(t *testing.T) {
 	m := NewMemory()
 	const n = 5000
@@ -105,6 +131,13 @@ func TestScanVisitsEverythingOnce(t *testing.T) {
 	}
 }
 
+// TestConcurrentApplyGet runs 16 goroutines writing and deleting 500 shared
+// keys with interleaved versions (every version is unique: i*16+g+1). Run
+// under `go test -race` it checks the shard locking. The final assertion
+// checks the incremental counters: however the writes interleaved, each
+// of the 500 keys ends up as exactly one live key or one tombstone, so
+// Keys+Tombstones must equal 500. A counter update outside the lock, or a
+// wrong transition case in Apply, would make them drift.
 func TestConcurrentApplyGet(t *testing.T) {
 	m := NewMemory()
 	var wg sync.WaitGroup
@@ -134,6 +167,12 @@ func TestConcurrentApplyGet(t *testing.T) {
 // TestScanSingleEntryPages forces a page boundary at every entry, including
 // every shard boundary (regression test for a cursor that skipped keys when
 // a page filled up on the first key of a new shard).
+//
+// maxBytes = 1 is smaller than any entry, so every page holds exactly one
+// entry (the "at least one entry" rule) and the cursor is exercised at every
+// possible position. The bug: the cursor used the index of the shard being
+// scanned when the page overflowed, paired with the last key of the
+// previous shard, so the next page skipped keys in the new shard.
 func TestScanSingleEntryPages(t *testing.T) {
 	m := NewMemory()
 	for i := 0; i < 300; i++ {

@@ -1,3 +1,5 @@
+// Tests for the LRU cache: map/list consistency, eviction order, counters,
+// and safety under concurrent use.
 package cache
 
 import (
@@ -7,6 +9,11 @@ import (
 	"testing"
 )
 
+// TestGetPutBasic proves the basic map contract: a miss on an empty cache, a
+// hit returning exactly the value and version stored, and that Put on an
+// existing key overwrites it in place (Len stays 1) instead of adding a
+// second entry. The version must round-trip because a cached read has to
+// report the same last-writer-wins version as a storage read.
 func TestGetPutBasic(t *testing.T) {
 	c := New(2)
 	if _, _, ok := c.Get("a"); ok {
@@ -26,6 +33,18 @@ func TestGetPutBasic(t *testing.T) {
 	}
 }
 
+// TestEvictionOrder proves the "LR" in LRU: the entry evicted is the one
+// used least recently, not the one inserted first (that would be FIFO).
+// Reading "a" saves it; "b" goes instead. It then shows a Put on an existing
+// key also counts as a use. Keys() exposes the list order (MRU first), so
+// the test checks the linked list itself, not just membership. Evictions and
+// Size confirm the counters agree with what happened.
+//
+//	after a,b,c:        c b a        (front = MRU)
+//	Get(a):             a c b
+//	Put(d) evicts b:    d a c
+//	Put(c) refreshes:   c d a
+//	Put(e) evicts a:    e c d
 func TestEvictionOrder(t *testing.T) {
 	c := New(3)
 	c.Put("a", nil, 0)
@@ -51,6 +70,11 @@ func TestEvictionOrder(t *testing.T) {
 	}
 }
 
+// TestDeleteInvalidates proves Delete removes a key from both the map and
+// the list: it reports presence correctly (true, then false), the key then
+// misses, and the list is still well-formed afterwards. The second half
+// fills the cache past capacity after a delete. If unlink had left a
+// dangling pointer, eviction or the Keys() walk would go wrong.
 func TestDeleteInvalidates(t *testing.T) {
 	c := New(2)
 	c.Put("a", []byte("1"), 1)
@@ -72,6 +96,9 @@ func TestDeleteInvalidates(t *testing.T) {
 	}
 }
 
+// TestStatsHitRate proves the counters and the derived hit rate: 3 hits and
+// 1 miss must give exactly 0.75. The README reports hit rate from these
+// counters (e.g. Test B's 90.9%), so the arithmetic must be right.
 func TestStatsHitRate(t *testing.T) {
 	c := New(10)
 	c.Put("a", nil, 0)
@@ -85,6 +112,10 @@ func TestStatsHitRate(t *testing.T) {
 	}
 }
 
+// TestCapacityOne covers the smallest legal cache, where one entry is both
+// MRU and LRU (root.next == root.prev). Inserting a second key must evict
+// the first. This is the edge case where pointer bugs in pushFront/unlink
+// around the sentinel would show up first.
 func TestCapacityOne(t *testing.T) {
 	c := New(1)
 	c.Put("a", nil, 0)
@@ -94,6 +125,13 @@ func TestCapacityOne(t *testing.T) {
 	}
 }
 
+// TestConcurrentAccess runs 16 goroutines doing a mix of Put, Get and Delete
+// on 300 overlapping keys against a 100-entry cache, forcing constant
+// eviction. Under `go test -race` it detects any access outside the mutex.
+// Afterwards it checks two structural invariants: size never exceeds
+// capacity, and the list holds exactly as many nodes as the map has keys.
+// If a concurrent interleaving ever corrupted the pairing of map and list,
+// these counts would disagree.
 func TestConcurrentAccess(t *testing.T) {
 	c := New(100)
 	var wg sync.WaitGroup
@@ -123,6 +161,11 @@ func TestConcurrentAccess(t *testing.T) {
 	}
 }
 
+// BenchmarkGetHit measures the cost of a cache hit on a full cache: lock,
+// map lookup, move-to-front (a no-op after the first iteration, since "k42"
+// stays the MRU), unlock, atomic increment. It is the per-request price the
+// README weighs against a storage lookup when explaining why the cache
+// barely changes end-to-end latency.
 func BenchmarkGetHit(b *testing.B) {
 	c := New(DefaultCapacity)
 	for i := 0; i < DefaultCapacity; i++ {

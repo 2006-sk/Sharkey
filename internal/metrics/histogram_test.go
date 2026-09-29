@@ -1,3 +1,5 @@
+// Tests for the log-linear latency histogram: bucket arithmetic, percentile
+// accuracy and lock-free concurrent recording.
 package metrics
 
 import (
@@ -7,6 +9,13 @@ import (
 	"time"
 )
 
+// TestBucketBoundsMonotonic checks the bucket arithmetic over 0 .. 2^20 µs
+// (about one second, stepping by 7 so both even and odd values and many
+// bucket interiors are hit). Two properties: every value is <= the upper
+// bound of the bucket it lands in (so reported percentiles never
+// under-state a sample), and bucket indices never decrease as values grow
+// (so walking buckets in index order is walking values in sorted order,
+// which the cumulative percentile search in Snapshot depends on).
 func TestBucketBoundsMonotonic(t *testing.T) {
 	prev := int64(-1)
 	for us := int64(0); us < 1<<20; us += 7 {
@@ -21,6 +30,11 @@ func TestBucketBoundsMonotonic(t *testing.T) {
 	}
 }
 
+// TestPercentilesWithinError feeds a known distribution, 1..10000 µs once
+// each, whose true nearest-rank percentiles are exactly 5000, 9500 and 9900,
+// and checks each reported percentile is within 4% of the truth: the ~3%
+// (1/32) bucket-width bound plus a little slack. Count and max are tracked
+// exactly, not bucketed, so they must match exactly.
 func TestPercentilesWithinError(t *testing.T) {
 	var h Histogram
 	// 1..10000 µs uniformly: p50≈5000, p95≈9500, p99≈9900.
@@ -41,6 +55,11 @@ func TestPercentilesWithinError(t *testing.T) {
 	}
 }
 
+// TestConcurrentRecord records 8 x 1000 samples from 8 goroutines at once.
+// With atomics and no lock, no increment may be lost: Count must be exactly
+// 8000, and the CAS loop for the maximum must settle on 999 even when
+// goroutines race to raise it. Under `go test -race` it also proves Record
+// has no unsynchronised access.
 func TestConcurrentRecord(t *testing.T) {
 	var h Histogram
 	var wg sync.WaitGroup
